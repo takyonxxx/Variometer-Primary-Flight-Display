@@ -617,7 +617,8 @@ void MainWindow::updatePFD()
     if(!m_gpsPos.isValid()) airspeed = 0;
 
     heading = m_gpsPos.attribute(QGeoPositionInfo::Direction);
-    if(!m_gpsPos.isValid() || !IsNan((float)heading))  heading = 0;
+
+    if(!m_gpsPos.isValid() || IsNan((float)heading))  heading = 0;
 
     machNo = airspeed /60.;
 
