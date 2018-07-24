@@ -1,9 +1,3 @@
-#-------------------------------------------------
-#
-# Project created by QtCreator 2013-09-24T17:03:18
-#
-#-------------------------------------------------
-
 QT       += core gui svg positioning sensors multimedia
 QT += androidextras
 
