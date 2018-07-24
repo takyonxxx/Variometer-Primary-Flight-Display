@@ -10,6 +10,10 @@ MainWindow::MainWindow( QWidget *parent ) :
     ui( new Ui::MainWindow )
 {
     ui->setupUi( this );
+    QPalette pal = palette();
+    pal.setColor(QPalette::Window, QColor("#A4A4A4"));
+    this->setPalette(pal);
+
     setScreenOrientation(SCREEN_ORIENTATION_PORTRAIT);
     m_start = false;
     createIgcFile = false;
@@ -34,7 +38,7 @@ MainWindow::MainWindow( QWidget *parent ) :
     turnRate           = 0;
     devH               = 0;
     devV               = 0;
-    airspeed           = 0;
+    groundspeed           = 0;
     sensoralt          = 0;
     sensorpressure     = 0;
     climbRate          = 0;
@@ -233,20 +237,16 @@ void MainWindow::startGps()
 
 void MainWindow::fillStatus()
 {
-    QString status;
+    QString status;   
+
     status.append("<span style='font-size:32pt; font-weight:600; color:#00cccc;'>"
-                  + QString::number(altitude, 'f', 1)
+                  + QString::number(altitude, 'f', 0)
                   + "</span><span style='font-size:24pt; font-weight:600; color:#00cccc;'> m</span>");
 
     if(m_gpsPos.isValid())
     status.append("<span style='font-size:32pt; font-weight:600; color:#00cccc;'> - "
-                  + QString::number(3.6 * m_gpsPos.attribute(QGeoPositionInfo::GroundSpeed), 'f', 1)
+                  + QString::number(groundspeed, 'f', 0)
                   + "</span><span style='font-size:24pt; font-weight:600; color:#00cccc;'> km/h</span>");
-
-
-    if(m_gpsPos.isValid())
-    status.append("<br /><span style='font-size:32pt; font-weight:600; color:#33DAFF;'>"
-                    + currentTime + "</span>");
 
     ui->label_status->setText(status);
 }
@@ -373,79 +373,6 @@ QString MainWindow::decimalToDDDMMMMMLon(qreal angle)
         return output;
 }
 
-void MainWindow::on_pushButton_exit_clicked()
-{  
-    QMessageBox msgBox;
-    msgBox.setText(" Warning.");
-    msgBox.setInformativeText(" Do you want to exit?");
-    msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
-    msgBox.setDefaultButton(QMessageBox::Ok);
-    int ret = msgBox.exec();
-    switch (ret) {
-      case QMessageBox::Ok:
-          if(mBeepThread)
-          {
-              mBeepThread->stopBeep();
-          }
-          exit(0);
-          break;
-      default:
-          // should never be reached
-          break;
-    }
-}
-
-void MainWindow::on_buttonStart_clicked()
-{
-    if ( ui->buttonStart->text() == "Start Gps")
-    {
-        if (m_posSource)
-        {
-            m_posSource->startUpdates();
-            mBeepThread->startBeep();
-            mBeepThread->start();
-            ui->label_log->setText("Waiting Gps");
-        }
-        ui->buttonStart->setText("Stop Gps");
-    }
-    else if ( ui->buttonStart->text() == "Stop Gps")
-    {
-        QMessageBox msgBox;
-        msgBox.setText(" Logging will stop.");
-        msgBox.setInformativeText(" Do you want to exit?");
-        msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
-        msgBox.setDefaultButton(QMessageBox::Ok);
-        int ret = msgBox.exec();
-        switch (ret) {
-          case QMessageBox::Ok:
-              if (m_posSource)
-              {
-                  m_posSource->stopUpdates();
-                  mBeepThread->stopBeep();
-                  ui->label_log->setText("Logging Off");
-              }
-              ui->buttonStart->setText("Start Gps");
-              break;
-          default:
-              // should never be reached
-              break;
-        }
-    }
-}
-
-void MainWindow::on_pushButton_increase_clicked()
-{
-
-    offset = offset - 5;
-    ui->label_offset->setText("Offset : " + QString::number( offset) + QString(" %1").arg(degreeChar));
-}
-
-void MainWindow::on_pushButton_decrease_clicked()
-{
-    offset = offset + 5;
-    ui->label_offset->setText("Offset : " + QString::number( offset) + QString(" %1").arg(degreeChar));
-}
-
 void MainWindow::keyPressEvent(QKeyEvent *k)
 {
     if( k->key() == Qt::Key_MediaPrevious )
@@ -467,16 +394,17 @@ void MainWindow::position_changed(QGeoPositionInfo gpsPos)
             m_start = true;
         }
 
-        QDateTime timestamp = gpsPos.timestamp();
-        QDateTime local = timestamp.toLocalTime();
-        //qreal horizontalAccuracy = gpsPos.attribute(QGeoPositionInfo::HorizontalAccuracy);
-        QString dateTimeString = local.toString("hh:mm:ss");
-        //currentTime = QTime::currentTime().toString();
-        currentTime = dateTimeString;
         if(m_start)
         {
             distance = m_coord.distanceTo(m_startCoord);
         }
+
+        groundspeed = 3.6 * m_gpsPos.attribute(QGeoPositionInfo::GroundSpeed);
+        if(IsNan((float)groundspeed)) groundspeed = 0;
+
+        heading = m_gpsPos.attribute(QGeoPositionInfo::Direction);
+        if(IsNan((float)heading))  heading = 0;
+
         updateIGC();
     }
 }
@@ -555,11 +483,6 @@ void MainWindow::gyroscope_changed()
     lastGyroTimestamp = timestamp;
 }
 
-bool IsNan( float value )
-{
-    return ((*(uint*)&value) & 0x7fffffff) > 0x7f800000;
-}
-
 void MainWindow::accelerometer_changed()
 {
     quint64 timestamp = sensorAcc->reading()->timestamp();
@@ -612,31 +535,99 @@ void MainWindow::accelerometer_changed()
 }
 
 void MainWindow::updatePFD()
-{    
-    airspeed = 3.6 * m_gpsPos.attribute(QGeoPositionInfo::GroundSpeed);
-    if(!m_gpsPos.isValid()) airspeed = 0;
+{
+    machNo = groundspeed /60.;
 
-    heading = m_gpsPos.attribute(QGeoPositionInfo::Direction);
-
-    if(!m_gpsPos.isValid() || IsNan((float)heading))  heading = 0;
-
-    machNo = airspeed /60.;
-
-    ui->widgetPFD->setFlightPathMarker  ( alpha, beta );
-    ui->widgetPFD->setRoll              ( roll      );
-    ui->widgetPFD->setPitch             ( pitch + offset);
-    ui->widgetPFD->setSlipSkid          ( slipSkid  );
-    ui->widgetPFD->setTurnRate          ( turnRate  );
-    ui->widgetPFD->setDevH              ( devH      );
-    ui->widgetPFD->setDevV              ( devV      );
-    ui->widgetPFD->setHeading           ( heading   );
-    ui->widgetPFD->setAirspeed          ( airspeed  );
-    ui->widgetPFD->setMachNo            ( machNo    );
-    ui->widgetPFD->setAltitude          ( sensoralt  );
-    ui->widgetPFD->setPressure          ( sensorpressure  );//hPa
-    ui->widgetPFD->setClimbRate         ( climbRate ) ;
+    ui->widgetPFD->setFlightPathMarker  ( alpha, beta    );
+    ui->widgetPFD->setRoll              ( roll           );
+    ui->widgetPFD->setPitch             ( pitch + offset );
+    ui->widgetPFD->setSlipSkid          ( slipSkid       );
+    ui->widgetPFD->setTurnRate          ( turnRate       );
+    ui->widgetPFD->setDevH              ( devH           );
+    ui->widgetPFD->setDevV              ( devV           );
+    ui->widgetPFD->setHeading           ( heading        );
+    ui->widgetPFD->setAirspeed          ( groundspeed    );
+    ui->widgetPFD->setMachNo            ( machNo         );
+    ui->widgetPFD->setAltitude          ( sensoralt      );
+    ui->widgetPFD->setPressure          ( sensorpressure );//hPa
+    ui->widgetPFD->setClimbRate         ( climbRate      ) ;
     ui->widgetPFD->setIdentifier        ( "Dist (km)" , true );
     ui->widgetPFD->setDistance          ( QString::number(distance / 1000., 'f', 1).toDouble() , true );
 
     ui->widgetPFD->update();    
+}
+
+
+void MainWindow::on_pushButton_start_clicked()
+{if ( ui->pushButton_start->text() == "Start Gps")
+    {
+        if (m_posSource)
+        {
+            m_posSource->startUpdates();
+            mBeepThread->startBeep();
+            mBeepThread->start();
+            ui->label_log->setText("Waiting Gps");
+        }
+        ui->pushButton_start->setText("Stop Gps");
+    }
+    else if ( ui->pushButton_start->text() == "Stop Gps")
+    {
+        QMessageBox msgBox;
+        msgBox.setText(" Logging will stop.");
+        msgBox.setInformativeText(" Do you want to exit?");
+        msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+        msgBox.setDefaultButton(QMessageBox::Ok);
+        int ret = msgBox.exec();
+        switch (ret) {
+          case QMessageBox::Ok:
+              if (m_posSource)
+              {
+                  m_posSource->stopUpdates();
+                  mBeepThread->stopBeep();
+                  ui->label_log->setText("Logging Off");
+              }
+              ui->pushButton_start->setText("Start Gps");
+              break;
+          default:
+              // should never be reached
+              break;
+        }
+    }
+
+}
+
+void MainWindow::on_pushButton_increase_clicked()
+{
+
+    offset = offset - 5;
+    ui->label_offset->setText("Offset : " + QString::number( offset) + QString(" %1").arg(degreeChar));
+}
+
+void MainWindow::on_pushButton_decrease_clicked()
+{
+    offset = offset + 5;
+    ui->label_offset->setText("Offset : " + QString::number( offset) + QString(" %1").arg(degreeChar));
+}
+
+
+void MainWindow::on_pushButton_exit_clicked()
+{
+    QMessageBox msgBox;
+    msgBox.setText(" Warning.");
+    msgBox.setInformativeText(" Do you want to exit?");
+    msgBox.setStandardButtons(QMessageBox::Ok | QMessageBox::Cancel);
+    msgBox.setDefaultButton(QMessageBox::Ok);
+    int ret = msgBox.exec();
+    switch (ret) {
+      case QMessageBox::Ok:
+          if(mBeepThread)
+          {
+              mBeepThread->stopBeep();
+          }
+          exit(0);
+          break;
+      default:
+          // should never be reached
+          break;
+    }
 }
