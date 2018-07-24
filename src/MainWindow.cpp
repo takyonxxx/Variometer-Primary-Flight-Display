@@ -239,7 +239,7 @@ void MainWindow::fillStatus()
                   + "</span><span style='font-size:24pt; font-weight:600; color:#00cccc;'> m</span>");
 
     if(m_gpsPos.isValid())
-    status.append("<span style='font-size:32pt; font-weight:600; color:#00cccc;'>- "
+    status.append("<span style='font-size:32pt; font-weight:600; color:#00cccc;'> - "
                   + QString::number(3.6 * m_gpsPos.attribute(QGeoPositionInfo::GroundSpeed), 'f', 1)
                   + "</span><span style='font-size:24pt; font-weight:600; color:#00cccc;'> km/h</span>");
 
@@ -555,6 +555,11 @@ void MainWindow::gyroscope_changed()
     lastGyroTimestamp = timestamp;
 }
 
+bool IsNan( float value )
+{
+    return ((*(uint*)&value) & 0x7fffffff) > 0x7f800000;
+}
+
 void MainWindow::accelerometer_changed()
 {
     quint64 timestamp = sensorAcc->reading()->timestamp();
@@ -612,7 +617,7 @@ void MainWindow::updatePFD()
     if(!m_gpsPos.isValid()) airspeed = 0;
 
     heading = m_gpsPos.attribute(QGeoPositionInfo::Direction);
-    if(!m_gpsPos.isValid())  heading = 0;
+    if(!m_gpsPos.isValid() || !IsNan((float)heading))  heading = 0;
 
     machNo = airspeed /60.;
 
