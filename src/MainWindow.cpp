@@ -68,7 +68,7 @@ MainWindow::MainWindow( QWidget *parent ) :
     lastGyroTimestamp  = 0;
     gDeltaT            = 0;
 
-    m_gpsMode = QGeoPositionInfoSource::AllPositioningMethods;
+    m_gpsMode = QGeoPositionInfoSource::SatellitePositioningMethods;
     m_gpsInterval = 1000;
 
     mediaDir = QAndroidJniObject::callStaticObjectMethod("android/os/Environment", "getExternalStorageDirectory", "()Ljava/io/File;");
@@ -96,7 +96,29 @@ void MainWindow::settingsDialog()
                    this, SLOT(onChangedGpsPower(const QString &)));
     connect(settingsDialog, SIGNAL(gpsIntervalChanged(QString)),
                    this, SLOT(onChangedGpsInterval(const QString &)));
-    settingsDialog->show();
+
+    QString gPower;
+    QString gInterval;
+
+    if(m_gpsMode == QGeoPositionInfoSource::AllPositioningMethods)
+        gPower = QString("High");
+    else if(m_gpsMode == QGeoPositionInfoSource::SatellitePositioningMethods)
+        gPower = QString("Medium");
+    else if(m_gpsMode == QGeoPositionInfoSource::NonSatellitePositioningMethods)
+        gPower = QString("Low");
+
+    settingsDialog->setCurrentGpsPower(gPower);
+
+    if(m_gpsInterval == 1000)
+        gInterval = QString("1");
+    else if(m_gpsInterval == 3000)
+        gInterval = QString("3");
+    else if(m_gpsInterval == 5000)
+        gInterval = QString("5");
+
+    settingsDialog->setCurrentGpsInterval(gInterval);
+    settingsDialog->init();
+    settingsDialog->exec();
 }
 
 void MainWindow::onChangedGpsPower(const QString & text)
@@ -128,7 +150,6 @@ void MainWindow::onChangedGpsInterval(const QString & text)
         m_gpsInterval = 3000;
     else if(text == QString("5"))
         m_gpsInterval = 5000;
-
 
     if ( ui->pushButton_start->text() == "Stop Gps")
     {

@@ -19,6 +19,10 @@ class SettingsDialog : public QDialog
 public:
     SettingsDialog(QWidget *parent = 0);
 
+    void init();
+    void setCurrentGpsPower(const QString &value);
+    void setCurrentGpsInterval(const QString &value);
+
 private:
     QLabel *labelGpsPower;
     QLabel *labelGpsInterval;
@@ -26,6 +30,8 @@ private:
     QComboBox *createComboBox(const QString &text = QString());
     QComboBox *gpsPowerComboBox;
     QComboBox *gpsIntervalComboBox;
+    QString currentGpsPower;
+    QString currentGpsInterval;
 
 private slots:   
     void dialogIsFinished(int result);
