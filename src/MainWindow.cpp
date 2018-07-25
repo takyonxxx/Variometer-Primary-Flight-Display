@@ -8,8 +8,23 @@ const QChar degreeChar(0260);
 MainWindow::MainWindow( QWidget *parent ) :
     QMainWindow( parent ),
     ui( new Ui::MainWindow )
-{
+{   
     ui->setupUi( this );
+
+    if (!requestFineLocationPermission())
+            qApp->quit();
+    if (!requestStorageWritePermission())
+            qApp->quit();
+
+    //create menubar
+    QMenuBar *menuBar=new QMenuBar(this);
+    QMenu *menu=new QMenu(tr("Menu"),this);
+    QAction *action  =new QAction(tr("Settings"),this);
+    connect(action,SIGNAL(triggered()),this,SLOT( settingsDialog()));
+    menu->addAction(action);
+    menuBar->addMenu(menu);
+    setMenuBar(menuBar);
+
     QPalette pal = palette();
     pal.setColor(QPalette::Window, QColor("#A4A4A4"));
     this->setPalette(pal);
@@ -22,7 +37,7 @@ MainWindow::MainWindow( QWidget *parent ) :
     ui->label_status->setStyleSheet("font-size: 12pt; color: white; background-color: #001a1a;");
     ui->label_log->setStyleSheet("font-size: 12pt; color: white; background-color: #001a1a;");
     ui->label_offset->setStyleSheet("font-size: 12pt; color: white; background-color: #001a1a;");
-    ui->label_offset->setText("Offset : " + QString::number(0) + QString(" %1").arg(degreeChar));
+    ui->label_offset->setText("Offset : " + QString::number(0) + QString(" %1").arg(degreeChar));   
 
     tCount             = 0;
     pressure           = 101325.0;
@@ -38,7 +53,7 @@ MainWindow::MainWindow( QWidget *parent ) :
     turnRate           = 0;
     devH               = 0;
     devV               = 0;
-    groundspeed           = 0;
+    groundspeed        = 0;
     sensoralt          = 0;
     sensorpressure     = 0;
     climbRate          = 0;
@@ -53,14 +68,19 @@ MainWindow::MainWindow( QWidget *parent ) :
     lastGyroTimestamp  = 0;
     gDeltaT            = 0;
 
+    m_gpsMode = QGeoPositionInfoSource::AllPositioningMethods;
+    m_gpsInterval = 1000;
+
     mediaDir = QAndroidJniObject::callStaticObjectMethod("android/os/Environment", "getExternalStorageDirectory", "()Ljava/io/File;");
+
     QDir dir(mediaDir.toString() + "/VarioLog");
     if (!dir.exists()) {
         dir.mkpath(".");
     }
 
-    mBeepThread = new BeepThread(this);     
-    mBeepThread->setVolume(100.);  
+    m_beepThread = new BeepThread(this);
+    m_beepThread->setVolume(100.);
+
     loadSensors();    
 }
 
@@ -69,27 +89,42 @@ MainWindow::~MainWindow()
     if ( ui ) delete ui; ui = 0;
 }
 
-void keep_screen_on(bool on) {
-  QtAndroid::runOnAndroidThread([on]{
-    QAndroidJniObject activity = QtAndroid::androidActivity();
-    if (activity.isValid()) {
-      QAndroidJniObject window =
-          activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+void MainWindow::settingsDialog()
+{
+    SettingsDialog *settingsDialog = new SettingsDialog(this);
+    connect(settingsDialog, SIGNAL(gpsPowerChanged(QString)),
+                   this, SLOT(onChangedGpsPower(const QString &)));
+    connect(settingsDialog, SIGNAL(gpsIntervalChanged(QString)),
+                   this, SLOT(onChangedGpsInterval(const QString &)));
+    settingsDialog->show();
+}
 
-      if (window.isValid()) {
-        const int FLAG_KEEP_SCREEN_ON = 128;
-        if (on) {
-          window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
-        } else {
-          window.callMethod<void>("clearFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
-        }
-      }
-    }
-    QAndroidJniEnvironment env;
-    if (env->ExceptionCheck()) {
-      env->ExceptionClear();
-    }
-  });
+void MainWindow::onChangedGpsPower(const QString & text)
+{
+    if(text == QString("High"))
+        m_gpsMode = QGeoPositionInfoSource::AllPositioningMethods;
+    else if(text == QString("Medium"))
+        m_gpsMode = QGeoPositionInfoSource::SatellitePositioningMethods;
+    else if(text == QString("Low"))
+        m_gpsMode = QGeoPositionInfoSource::NonSatellitePositioningMethods;
+
+    m_posSource->stopUpdates();
+    m_posSource->setPreferredPositioningMethods(m_gpsMode);
+    m_posSource->startUpdates();
+}
+
+void MainWindow::onChangedGpsInterval(const QString & text)
+{
+    if(text == QString("1"))
+        m_gpsInterval = 1000;
+    else if(text == QString("3"))
+        m_gpsInterval = 3000;
+    else if(text == QString("5"))
+        m_gpsInterval = 5000;
+
+    m_posSource->stopUpdates();
+    m_posSource->setUpdateInterval(m_gpsInterval);
+    m_posSource->startUpdates();
 }
 
 bool MainWindow::setScreenOrientation(int orientation)
@@ -221,15 +256,12 @@ void MainWindow::startGps()
     m_posSource = QGeoPositionInfoSource::createDefaultSource(this);
     if (m_posSource)
     {
-        m_posSource->setPreferredPositioningMethods(QGeoPositionInfoSource::AllPositioningMethods);
-        m_posSource->setUpdateInterval(0);
+        m_posSource->setPreferredPositioningMethods(m_gpsMode);
+        m_posSource->setUpdateInterval(m_gpsInterval);
 
         connect(m_posSource, SIGNAL(positionUpdated(QGeoPositionInfo)),
                 this, SLOT(position_changed(QGeoPositionInfo)));
-        /*connect(m_posSource, SIGNAL(satellitesInViewUpdated(QList<QGeoSatelliteInfo>)),
-                this, SLOT(satellitesInViewUpdated(QList<QGeoSatelliteInfo>)));
-        connect(m_posSource, SIGNAL(satellitesInUseUpdated(QList<QGeoSatelliteInfo>)),
-                        this, SLOT(satellitesInUseUpdated(QList<QGeoSatelliteInfo>)));*/
+
     }
    else
         qFatal("No Position Source created!");
@@ -264,12 +296,13 @@ void MainWindow::fillVario()
 void MainWindow::updateIGC()
 {
     if(!createIgcFile)
-    {
+    {       
         QString sdate = QDate::currentDate().toString("ddMMyy");
         QString stime = QTime::currentTime().toString("hhmmss");
-        igcFile = new QFile(mediaDir.toString() + "/XcVario/" + sdate + "-" + stime +"_flightlog.igc");
+        igcFile = new QFile(mediaDir.toString() + "/VarioLog/" + sdate + "-" + stime +"_flightlog.igc");
         createIgcHeader();
         createIgcFile = true;
+        tCount = 0;
     }
 
     QDateTime timestamp = m_gpsPos.timestamp();
@@ -438,8 +471,8 @@ void MainWindow::pressure_changed()
                 vario = altitude_filter->GetXVel();
                 climbRate = vario ;
 
-                if(mBeepThread)
-                    mBeepThread->SetVario(vario, p_dt);
+                if(m_beepThread)
+                    m_beepThread->SetVario(vario, p_dt);
 
                 fillVario();
                 fillStatus();
@@ -563,9 +596,10 @@ void MainWindow::on_pushButton_start_clicked()
     {
         if (m_posSource)
         {
+            createIgcFile = false;
             m_posSource->startUpdates();
-            mBeepThread->startBeep();
-            mBeepThread->start();
+            m_beepThread->startBeep();
+            m_beepThread->start();
             ui->label_log->setText("Waiting Gps");
         }
         ui->pushButton_start->setText("Stop Gps");
@@ -583,7 +617,7 @@ void MainWindow::on_pushButton_start_clicked()
               if (m_posSource)
               {
                   m_posSource->stopUpdates();
-                  mBeepThread->stopBeep();
+                  m_beepThread->stopBeep();
                   ui->label_log->setText("Logging Off");
               }
               ui->pushButton_start->setText("Start Gps");
@@ -620,9 +654,9 @@ void MainWindow::on_pushButton_exit_clicked()
     int ret = msgBox.exec();
     switch (ret) {
       case QMessageBox::Ok:
-          if(mBeepThread)
+          if(m_beepThread)
           {
-              mBeepThread->stopBeep();
+              m_beepThread->stopBeep();
           }
           exit(0);
           break;
