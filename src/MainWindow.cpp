@@ -108,7 +108,6 @@ void MainWindow::onChangedGpsPower(const QString & text)
     else if(text == QString("Low"))
         m_gpsMode = QGeoPositionInfoSource::NonSatellitePositioningMethods;
 
-<<<<<<< HEAD
     if ( ui->pushButton_start->text() == "Stop Gps")
     {
         m_posSource->stopUpdates();
@@ -119,12 +118,6 @@ void MainWindow::onChangedGpsPower(const QString & text)
     {
         m_posSource->setPreferredPositioningMethods(m_gpsMode);
     }
-
-=======
-    m_posSource->stopUpdates();
-    m_posSource->setPreferredPositioningMethods(m_gpsMode);
-    m_posSource->startUpdates();
->>>>>>> 21491701d214685c2f64806df2193c14a5320ca8
 }
 
 void MainWindow::onChangedGpsInterval(const QString & text)
@@ -136,7 +129,7 @@ void MainWindow::onChangedGpsInterval(const QString & text)
     else if(text == QString("5"))
         m_gpsInterval = 5000;
 
-<<<<<<< HEAD
+
     if ( ui->pushButton_start->text() == "Stop Gps")
     {
         m_posSource->stopUpdates();
@@ -147,11 +140,6 @@ void MainWindow::onChangedGpsInterval(const QString & text)
     {
          m_posSource->setUpdateInterval(m_gpsInterval);
     }
-=======
-    m_posSource->stopUpdates();
-    m_posSource->setUpdateInterval(m_gpsInterval);
-    m_posSource->startUpdates();
->>>>>>> 21491701d214685c2f64806df2193c14a5320ca8
 }
 
 bool MainWindow::setScreenOrientation(int orientation)
