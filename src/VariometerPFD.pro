@@ -1,3 +1,9 @@
+#-------------------------------------------------
+#
+# Project created by QtCreator 2013-09-24T17:03:18
+#
+#-------------------------------------------------
+
 QT       += core gui svg positioning sensors multimedia
 QT += androidextras
 
@@ -34,7 +40,8 @@ HEADERS += \
     qfi_PFD.h \
     WidgetPFD.h \
     Generator.h \
-    BeepThread.h
+    BeepThread.h \
+    SettingsDialog.h
 
 SOURCES += \   
     main.cpp \
@@ -45,7 +52,8 @@ SOURCES += \
     qfi_PFD.cpp \
     WidgetPFD.cpp \
     Generator.cpp \
-    BeepThread.cpp
+    BeepThread.cpp \
+    SettingsDialog.cpp
 
 FORMS += \
     MainWindow.ui \
