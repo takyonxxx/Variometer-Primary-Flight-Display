@@ -29,6 +29,7 @@
         <file>images/pfd/pfd_vsi_arrow.svg</file>
         <file>images/pfd/pfd_vsi_scale.svg</file>
         <file>images/icon_256x256_ios7.png</file>
+        <file>images/settings.png</file>
     </qresource>
     <qresource prefix="/"/>
 </RCC>

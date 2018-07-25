@@ -1,50 +1,3 @@
-/***************************************************************************//**
- * @file example/MainWindow.h
- * @author  Marek M. Cel <marekcel@marekcel.pl>
- *
- * @section LICENSE
- *
- * Copyright (C) 2013 Marek M. Cel
- *
- * This file is part of QFlightInstruments. You can redistribute and modify it
- * under the terms of GNU General Public License as published by the Free
- * Software Foundation; either version 3 of the License, or (at your option)
- * any later version.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * for more details.
- *
- * You should have received a copy of the GNU General Public License along
- * with this program; if not, write to the Free Software Foundation, Inc.
- * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
- *
- * Further information about the GNU General Public License can also be found
- * on the world wide web at http://www.gnu.org.
- *
- * ---
- *
- * Copyright (C) 2013 Marek M. Cel
- *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included
- * in all copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- ******************************************************************************/
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
@@ -65,9 +18,11 @@
 #include <QChar>
 #include <QFile>
 #include <QtAndroid>
+#include <QDialog>
 #include <math.h>
 #include <kalmanfilter.h>
 #include "BeepThread.h"
+#include "SettingsDialog.h";
 
 namespace Ui
 {
@@ -82,8 +37,6 @@ namespace Ui
 #define SCREEN_ORIENTATION_PORTRAIT 1
 #define RADIANS_TO_DEGREES 57.2957795
 
-////////////////////////////////////////////////////////////////////////////////
-
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -92,6 +45,66 @@ public:
 
     explicit MainWindow( QWidget *parent = 0 );
     ~MainWindow();
+
+    bool IsNan( float value )
+    {
+        return ((*(uint*)&value) & 0x7fffffff) > 0x7f800000;
+    }
+
+    void keep_screen_on(bool on) {
+      QtAndroid::runOnAndroidThread([on]{
+        QAndroidJniObject activity = QtAndroid::androidActivity();
+        if (activity.isValid()) {
+          QAndroidJniObject window =
+              activity.callObjectMethod("getWindow", "()Landroid/view/Window;");
+
+          if (window.isValid()) {
+            const int FLAG_KEEP_SCREEN_ON = 128;
+            if (on) {
+              window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+            } else {
+              window.callMethod<void>("clearFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+            }
+          }
+        }
+        QAndroidJniEnvironment env;
+        if (env->ExceptionCheck()) {
+          env->ExceptionClear();
+        }
+      });
+    }
+
+    bool requestFineLocationPermission()
+    {
+        QtAndroid::PermissionResult request = QtAndroid::checkPermission("android.permission.ACCESS_FINE_LOCATION");
+        if (request == QtAndroid::PermissionResult::Denied){
+            QtAndroid::requestPermissionsSync(QStringList() <<  "android.permission.ACCESS_FINE_LOCATION");
+            request = QtAndroid::checkPermission("android.permission.ACCESS_FINE_LOCATION");
+            if (request == QtAndroid::PermissionResult::Denied)
+            {
+                qDebug() << "FineLocation Permission denied";
+                return false;
+            }
+        }
+        qDebug() << "FineLocation Permissions granted!";
+        return true;
+    }
+
+    bool requestStorageWritePermission() {
+        QtAndroid::PermissionResult request = QtAndroid::checkPermission("android.permission.WRITE_EXTERNAL_STORAGE");
+        if(request == QtAndroid::PermissionResult::Denied) {
+            QtAndroid::requestPermissionsSync( QStringList() << "android.permission.WRITE_EXTERNAL_STORAGE" );
+            request = QtAndroid::checkPermission("android.permission.WRITE_EXTERNAL_STORAGE");
+            if(request == QtAndroid::PermissionResult::Denied)
+            {
+                qDebug() << "StorageWrite Permission denied";
+                return false;
+            }
+        }
+        qDebug() << "StorageWrite Permissions granted!";
+        return true;
+    }
+
     
 private:
     Ui::MainWindow *ui;   
@@ -115,20 +128,26 @@ public slots:
     void pressure_changed();
     void accelerometer_changed();
     void satellitesInViewUpdated(const QList<QGeoSatelliteInfo> &infos);
-    void satellitesInUseUpdated(const QList<QGeoSatelliteInfo> &infos);
+    void satellitesInUseUpdated(const QList<QGeoSatelliteInfo> &infos);   
+    void keyPressEvent(QKeyEvent *k);
+    void settingsDialog();
+    void onChangedGpsPower(const QString & item);
+    void onChangedGpsInterval(const QString & text);
+
+private slots:
+    void on_pushButton_start_clicked();
     void on_pushButton_exit_clicked();
-    void on_buttonStart_clicked();
     void on_pushButton_increase_clicked();
     void on_pushButton_decrease_clicked();
-    void keyPressEvent(QKeyEvent *k);
 
-private:      
+private:
     QGeoPositionInfoSource *m_posSource;
     QGeoPositionInfo m_gpsPos;
     QGeoCoordinate m_coord;
     QGeoCoordinate m_startCoord;
-
-    BeepThread *mBeepThread;
+    QGeoPositionInfoSource::PositioningMethod m_gpsMode;
+    int m_gpsInterval;
+    BeepThread *m_beepThread;
 
     bool m_start;
     bool createIgcFile;
@@ -171,7 +190,6 @@ private:
     qreal oldaltitude;
     QFile * igcFile;
     QAndroidJniObject mediaDir;
-    QString currentTime;
 
     int tCount;
 
@@ -185,7 +203,7 @@ private:
     qreal turnRate          ;
     qreal devH              ;
     qreal devV              ;
-    qreal airspeed          ;
+    qreal groundspeed          ;
     qreal sensoralt         ;
     qreal sensorpressure    ;
     qreal climbRate         ;
