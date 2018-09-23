@@ -80,6 +80,8 @@ MainWindow::MainWindow( QWidget *parent ) :
 
     m_beepThread = new BeepThread(this);
     m_beepThread->setVolume(100.);
+    m_beepThread->startBeep();
+    m_beepThread->start();
 
     loadSensors();    
 }
@@ -594,6 +596,7 @@ void MainWindow::accelerometer_changed()
                pitch = pitch_filter->GetXAbs();
 
                pitch = -1 * yaw;
+               roll = -1 * roll;
 
                updatePFD();
                a_start = a_end;
@@ -634,8 +637,8 @@ void MainWindow::on_pushButton_start_clicked()
         {
             createIgcFile = false;
             m_posSource->startUpdates();
-            m_beepThread->startBeep();
-            m_beepThread->start();
+           /* m_beepThread->startBeep();
+            m_beepThread->start();*/
             ui->label_log->setText("Waiting Gps");
         }
         ui->pushButton_start->setText("Stop Gps");
@@ -653,7 +656,7 @@ void MainWindow::on_pushButton_start_clicked()
               if (m_posSource)
               {
                   m_posSource->stopUpdates();
-                  m_beepThread->stopBeep();
+                 // m_beepThread->stopBeep();
                   ui->label_log->setText("Logging Off");
               }
               ui->pushButton_start->setText("Start Gps");
