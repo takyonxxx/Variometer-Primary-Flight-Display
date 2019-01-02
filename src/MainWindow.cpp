@@ -475,6 +475,12 @@ void MainWindow::position_changed(QGeoPositionInfo gpsPos)
 
         heading = m_gpsPos.attribute(QGeoPositionInfo::Direction);
         if(IsNan((float)heading))  heading = 0;
+        
+        altitude = m_coord.altitude();
+        if(IsNan((float)altitude))  altitude = 0;
+
+        if(!m_sensorPressureValid)
+        fillStatus();
 
         updateIGC();
     }
