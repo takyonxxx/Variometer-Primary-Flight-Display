@@ -151,6 +151,7 @@ private:
 
     bool m_start;
     bool createIgcFile;
+    bool m_sensorPressureValid;
 
     QPressureSensor *sensorPress;
     QPressureReading *pressureReading;
