@@ -32,6 +32,7 @@ MainWindow::MainWindow( QWidget *parent ) :
     setScreenOrientation(SCREEN_ORIENTATION_PORTRAIT);
     m_start = false;
     createIgcFile = false;
+    m_sensorPressureValid = false;
 
     ui->label_vario->setStyleSheet("font-size: 12pt; color: #cccccc; background-color: #001a1a;");
     ui->label_status->setStyleSheet("font-size: 12pt; color: white; background-color: #001a1a;");
@@ -197,6 +198,8 @@ void MainWindow::loadSensors()
             QString sensor_type = type;
             if(sensor_type.contains("Pressure"))
             {
+                m_sensorPressureValid = true;
+
                 sensorPress = new QPressureSensor(this);
                 connect(sensorPress, SIGNAL(readingChanged()), this, SLOT(pressure_changed()));
                 sensorPress->setIdentifier(identifier);
